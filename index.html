@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Control de Préstamos — 7% mensual</title>
+  <title>Control de Préstamos</title>
   <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script> 
   <style>
     /* ---------- Variables y reseteo ---------- */
@@ -36,7 +36,7 @@
     p.lead{margin:6px 0 14px;color:var(--muted);font-size:13px}
 
     label{display:block;font-size:13px;color:var(--muted);margin-top:10px}
-    input[type=text], input[type=number], select{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));color:inherit}
+    input[type=text], input[type=number], input[type=password], select{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));color:inherit}
     .row{display:flex;gap:10px}
     .row > *{flex:1}
 
@@ -68,7 +68,7 @@
     th,td{padding:8px;border-bottom:1px dashed rgba(255,255,255,0.03);text-align:left}
     th{text-align:center}
 
-    /* 1. Estilo para la cuota actual pendiente */
+    /* Estilo para la cuota actual pendiente */
     .current-due td{
       background: rgba(239, 68, 68, 0.1); /* Fondo muy sutil rojo */
     }
@@ -88,6 +88,7 @@
     .pill{padding:6px 10px;border-radius:999px;background:var(--glass-2);font-weight:700}
     .danger{color:var(--danger)}
     .success{color:var(--success)}
+    .error-msg{color:var(--danger); font-size:13px; margin-top:10px; font-weight:600;}
 
     /* ---------- Responsive touches ---------- */
     @media (max-width:560px){
@@ -95,38 +96,76 @@
       .logo{width:44px;height:44px}
     }
 
-    /* 3. Mejoras de Responsividad para Tablas */
+    /* Mejoras de Responsividad para Tablas */
     @media (max-width: 768px){
-      /* Ajuste general para espaciado en pantallas más pequeñas */
       body{padding:10px}
       .app{gap:10px}
-      
-      /* Contenedor del calendario y pagos - permite scroll horizontal */
       #scheduleWrap, #paymentsWrap{
         overflow-x: auto !important; 
       }
-      /* Min-width ajustado a 500px ya que quitamos una columna */
       #scheduleWrap table, #paymentsWrap table{
         min-width: 500px; 
       }
-      .stat{min-width: unset; flex-basis: 45%;} /* Mejora el ajuste de los stats en filas de 2 */
-      .summary{justify-content: space-between;} /* Distribuye mejor los stats */
+      .stat{min-width: unset; flex-basis: 45%;} 
+      .summary{justify-content: space-between;} 
     }
 
     @media (max-width: 560px){
-      .summary{flex-direction: column; gap: 8px;} /* Pone los stats en una sola columna */
+      .summary{flex-direction: column; gap: 8px;} 
+    }
+    
+    /* Estilos del Login */
+    .login-screen{
+        display:grid; 
+        place-items:center; 
+        height:100vh; 
+        background:linear-gradient(180deg,#071025 0%, #081225 60%); 
+        color:#e6eef8; 
+        flex-direction:column; 
+        gap:20px;
+    }
+    .login-card{
+        max-width:300px; 
+        padding:20px; 
+        border-radius:14px; 
+        background:var(--card); 
+        text-align:center;
+        box-shadow:var(--soft-shadow);
+        border:1px solid rgba(255,255,255,0.04);
     }
   </style>
 </head>
 <body>
-  <div class="app">
+  
+  <div class="login-screen" id="loginScreen" style="display:grid;">
+    <h2>🔐 Iniciar Sesión</h2>
+    <div class="login-card">
+        <label>Usuario</label>
+        <input id="loginUser" type="text" placeholder="Usuario" value="" />
+        
+        <label style="margin-top:15px;">Clave</label>
+        <input id="loginPass" type="password" placeholder="Contraseña" value="" />
+
+        <div id="loginError" class="error-msg" style="display:none;">Usuario o clave incorrecta.</div>
+        
+        <button id="loginBtn" class="btn primary" style="width:100%; margin-top:20px;">Acceder</button>
+        
+        <p class="small muted" style="margin-top:10px">Usuario: CesarPati | Clave: cesarpati12345</p>
+    </div>
+  </div>
+
+  <div class="app" id="mainApp" style="display:none; padding:20px;">
+
     <aside class="sidebar">
-      <div class="brand">
-        <div class="logo">7%</div>
-        <div>
-          <h1>Control de Préstamos</h1>
-          <p class="lead">Tasa fija 7% mensual · Guarda datos localmente</p>
-        </div>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div class="brand">
+            <div class="logo">P%</div>
+            <div>
+              <h1>Control de Préstamos</h1>
+              <p class="lead" id="appLead">Tasa variable · Clave: XXXXX</p>
+            </div>
+          </div>
+          <button id="logoutBtn" class="btn ghost" style="margin-left:10px;">Salir</button>
       </div>
 
       <div style="margin-top:12px">
@@ -139,16 +178,24 @@
             <input id="clientAmount" type="number" min="0" step="0.01" value="1000" />
           </div>
           <div>
-            <label>Plazo (meses)</label>
-            <input id="clientMonths" type="number" min="1" step="1" value="6" />
+            <label>Tasa (%)</label>
+            <input id="clientRate" type="number" min="1" max="20" step="1" value="7" />
           </div>
         </div>
-
-        <label>Modo de amortización</label>
-        <select id="clientMode">
-          <option value="amortizacion">Amortización (cuota fija)</option>
-          <option value="simple">Interés simple</option>
-        </select>
+        
+        <div class="row">
+            <div>
+                <label>Plazo (meses)</label>
+                <input id="clientMonths" type="number" min="1" step="1" value="6" />
+            </div>
+            <div>
+                <label>Modo de amortización</label>
+                <select id="clientMode">
+                  <option value="amortizacion">Amortización (cuota fija)</option>
+                  <option value="simple">Interés simple</option>
+                </select>
+            </div>
+        </div>
 
         <div class="actions">
           <button id="addClient" class="btn primary">Agregar cliente</button>
@@ -176,7 +223,7 @@
                 <div class="small muted" id="detailMeta"></div>
               </div>
               <div style="display:flex;gap:8px;align-items:center">
-                <div class="pill">Tasa: 7% / mes</div>
+                <div class="pill" id="detailRatePill">Tasa: 7% / mes</div>
                 <button id="downloadClientCSV" class="btn ghost">Exportar EXCEL</button>
                 <button id="deleteClient" class="btn" style="background:transparent;border:1px solid rgba(255,255,255,0.04)">Eliminar</button>
               </div>
@@ -206,6 +253,7 @@
               <div class="actions" style="margin-top:8px">
                 <button id="addPayment" class="btn primary">Añadir pago</button>
                 <button id="applyAuto" class="btn ghost">Aplicar al siguiente</button>
+                <button id="addNoPayment" class="btn ghost" style="background:var(--danger); color:white">Marcar No Pago</button>
               </div>
             </div>
 
@@ -237,17 +285,25 @@
   </div>
 
   <script>
+    
+    // --- CREDENCIALES FIJAS ---
+    const VALID_USER = 'CesarPati';
+    const VALID_PASS = 'cesarpati12345';
+    // La clave de almacenamiento única se basará en el usuario para compartir datos
+    const SHARED_KEY_PREFIX = 'prestamos_clients_v_share_';
+    
+    // VARIABLE GLOBAL PARA ALMACENAMIENTO
+    let storageKey = ''; 
+    
     // ---------- Constantes y utilidades ----------
-    const RATE = 0.07; // 7% mensual
     const $ = id => document.getElementById(id);
-    const storageKey = 'prestamos_clients_v1';
 
     function money(n){return Number(n).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})}
     function uid(){return 'c_'+Math.random().toString(36).slice(2,9)}
 
-    // ---------- Cálculos ----------
-    function calcAmortizacion(P, n){
-      const r = RATE;
+    // ---------- Cálculos (AJUSTADOS PARA TASA VARIABLE) ----------
+    function calcAmortizacion(P, n, rate){
+      const r = rate / 100; // Convertir % a decimal
       const cuota = (P * r) / (1 - Math.pow(1 + r, -n));
       let saldo = P;
       const schedule = [];
@@ -256,29 +312,32 @@
         const interes = saldo * r;
         const abono = cuota - interes;
         saldo = Math.max(0, saldo - abono);
-        // NOTA: Mantenemos el saldo en el objeto 'schedule' para los cálculos internos
         schedule.push({mes:i, cuota: Number(cuota.toFixed(2)), interes: Number(interes.toFixed(2)), abono: Number(abono.toFixed(2)), saldo: Number(saldo.toFixed(2))}); 
         interesTotal += interes;
       }
       return {cuota: Number(cuota.toFixed(2)), interesTotal: Number(interesTotal.toFixed(2)), schedule};
     }
 
-    function calcSimple(P,n){
-      const r = RATE;
+    function calcSimple(P,n, rate){
+      const r = rate / 100; // Convertir % a decimal
       const interesMensual = P * r;
       const interesTotal = interesMensual * n;
       const pagoTotal = P + interesTotal;
       return {interesMensual: Number(interesMensual.toFixed(2)), interesTotal: Number(interesTotal.toFixed(2)), pagoTotal: Number(pagoTotal.toFixed(2))}
     }
 
-    // ---------- Storage ----------
+    // ---------- Storage (USA LA VARIABLE GLOBAL storageKey) ----------
     function loadClients(){
+      if(!storageKey) return [];
       try{return JSON.parse(localStorage.getItem(storageKey)||'[]')}
       catch(e){return []}
     }
-    function saveClients(clients){localStorage.setItem(storageKey, JSON.stringify(clients));}
+    function saveClients(clients){
+        if(!storageKey) return;
+        localStorage.setItem(storageKey, JSON.stringify(clients));
+    }
 
-    // ---------- Render lista de clientes ----------
+    // ---------- Render lista de clientes (MUESTRA TASA) ----------
     function renderClients(){
       const list = $('clientsList'); list.innerHTML='';
       const clients = loadClients();
@@ -290,7 +349,7 @@
           <div class="avatar">${c.name.split(' ').map(s=>s[0]).slice(0,2).join('')}</div>
           <div class="client-meta">
             <b>${c.name}</b>
-            <div class="small muted">Prestado: $${money(c.principal)} · Meses: ${c.months}</div>
+            <div class="small muted">Prestado: $${money(c.principal)} · Meses: ${c.months} · Tasa: ${c.rate}%</div>
           </div>
           <div style="text-align:right">
             <div class="small muted">Adeuda</div>
@@ -316,7 +375,7 @@
       });
     }
 
-    // ---------- Cliente seleccionado ----------
+    // ---------- Cliente seleccionado (MUESTRA TASA) ----------
     let activeClientId = null;
     function selectClient(id){
       const clients = loadClients();
@@ -326,7 +385,9 @@
       $('emptyState').style.display='none';
       $('clientDetail').style.display='block';
       $('detailName').textContent = c.name;
-      $('detailMeta').textContent = `Prestado $${money(c.principal)} · ${c.months} meses · ${c.mode==='amortizacion'?'Amortización':'Interés simple'}`;
+      // Mostrar tasa en detalle
+      $('detailMeta').textContent = `Prestado $${money(c.principal)} · ${c.months} meses · Tasa: ${c.rate}% · ${c.mode==='amortizacion'?'Amortización':'Interés simple'}`;
+      $('detailRatePill').textContent = `Tasa: ${c.rate}% / mes`;
       $('statPrincipal').textContent = '$'+money(c.principal);
       $('statPaid').textContent = '$'+money(getClientPaidTotal(c));
       $('statDue').textContent = '$'+money(getClientDue(c));
@@ -338,56 +399,54 @@
       return (c.payments||[]).reduce((s,p)=>s + Number(p.amount||0),0)
     }
 
+    // PASAMOS LA TASA
     function getClientDue(c){
       if(c.mode==='simple'){
-        const summary = calcSimple(c.principal, c.months);
+        const summary = calcSimple(c.principal, c.months, c.rate);
         const paid = getClientPaidTotal(c);
         return Math.max(0, summary.pagoTotal - paid);
       } else {
-        const summary = calcAmortizacion(c.principal, c.months);
+        const summary = calcAmortizacion(c.principal, c.months, c.rate);
         const total = summary.cuota * c.months;
         const paid = getClientPaidTotal(c);
         return Math.max(0, total - paid);
       }
     }
 
-    // ---------- Schedule y pagos ----------
+    // PASAMOS LA TASA
     function renderSchedule(c){
       const wrap = $('scheduleWrap'); wrap.innerHTML='';
       if(c.mode==='simple'){
-        const s = calcSimple(c.principal, c.months);
+        const s = calcSimple(c.principal, c.months, c.rate);
         wrap.innerHTML = `<div class="small muted">Interés mensual: $${money(s.interesMensual)} · Interés total: $${money(s.interesTotal)} · Total a pagar: $${money(s.pagoTotal)}</div>`;
         return;
       }
-      const amort = calcAmortizacion(c.principal, c.months);
-      // ENCABEZADO ACTUALIZADO: Quitamos Saldo
+      const amort = calcAmortizacion(c.principal, c.months, c.rate);
       let html = '<table><thead><tr><th>Mes</th><th>Cuota</th><th>Interés</th><th>Abono</th><th>Estado</th></tr></thead><tbody>';
       
-      // Determinar estado según pagos aplicados (primero a primero)
       let paidAmount = getClientPaidTotal(c);
-      let isFirstPending = true; // Variable para rastrear la primera cuota pendiente
+      let isFirstPending = true;
 
       amort.schedule.forEach(row=>{
         let estado = 'Pendiente';
-        let rowClass = ''; // Clase CSS para la fila
+        let rowClass = ''; 
         
         if(paidAmount >= row.cuota){
           estado='Pagado'; 
           paidAmount -= row.cuota;
         }
-        else { // Cuota parcial o pendiente total
+        else { 
           if(paidAmount > 0){
             estado = 'Parcial'; 
             paidAmount = 0;
           }
 
-          if(isFirstPending) { // Identificamos la primera cuota pendiente (la actual)
+          if(isFirstPending) { 
             rowClass = 'current-due'; 
-            isFirstPending = false; // Deshabilitamos para las siguientes filas
+            isFirstPending = false; 
           }
         }
 
-        // CUERPO DE TABLA ACTUALIZADO: Quitamos row.saldo
         html += `<tr class="${rowClass}"><td style="text-align:center"><strong>${row.mes}</strong></td><td><strong>$${money(row.cuota)}</strong></td><td>$${money(row.interes)}</td><td>$${money(row.abono)}</td><td style="text-align:center">${estado}</td></tr>`;
       });
       html += '</tbody></table>';
@@ -400,11 +459,12 @@
       if(payments.length===0){wrap.innerHTML='<div class="muted small">Aún no hay pagos registrados.</div>';return}
       let html = '<table><thead><tr><th>Fecha</th><th>Nota</th><th style="text-align:right">Monto</th><th></th></tr></thead><tbody>';
       payments.forEach(p=>{
-        html += `<tr><td>${p.date}</td><td>${p.note||''}</td><td style="text-align:right">$${money(p.amount)}</td><td style="text-align:right"><button class="btn ghost" data-payid="${p.id}">Eliminar</button></td></tr>`;
+        // Si la nota es 'MES NO PAGADO', usar estilo de peligro
+        const noteClass = (p.note === 'MES NO PAGADO') ? 'danger' : '';
+        html += `<tr><td>${p.date}</td><td class="${noteClass}">${p.note||''}</td><td style="text-align:right">$${money(p.amount)}</td><td style="text-align:right"><button class="btn ghost" data-payid="${p.id}">Eliminar</button></td></tr>`;
       });
       html += '</tbody></table>';
       wrap.innerHTML = html;
-      // attach delete handlers
       wrap.querySelectorAll('button[data-payid]').forEach(btn=>btn.addEventListener('click', ()=>{
         const payId = btn.dataset.payid; deletePayment(activeClientId, payId);
       }));
@@ -425,17 +485,20 @@
     }
 
     // ---------- Actions UI ----------
+    // OBTENER Y GUARDAR TASA
     $('addClient').addEventListener('click', ()=>{
       const name = $('clientName').value.trim();
       const principal = Number($('clientAmount').value) || 0;
+      const rate = Number($('clientRate').value) || 7; // Obtener la tasa
       const months = parseInt($('clientMonths').value) || 1;
       const mode = $('clientMode').value;
-      if(!name || principal<=0 || months<=0){alert('Llena nombre, monto y plazo válidos.');return}
+      if(!name || principal<=0 || months<=0 || rate<1 || rate>20){alert('Llena nombre, monto, plazo y tasa válidos (1-20%).');return}
       const clients = loadClients();
-      const newClient = {id: uid(), name, principal, months, mode, payments: []};
+      // Guardar la tasa (rate) en el objeto cliente
+      const newClient = {id: uid(), name, principal, rate, months, mode, payments: []};
       clients.push(newClient); saveClients(clients); renderClients();
       // reset form
-      $('clientName').value=''; $('clientAmount').value='1000'; $('clientMonths').value='6';
+      $('clientName').value=''; $('clientAmount').value='1000'; $('clientMonths').value='6'; $('clientRate').value='7';
     });
 
     $('clearAll').addEventListener('click', ()=>{
@@ -452,13 +515,23 @@
       $('payAmount').value=''; $('payNote').value='';
     });
 
+    // AÑADIR NO PAGO
+    $('addNoPayment').addEventListener('click', ()=>{
+      if(!activeClientId){alert('Selecciona un cliente primero.');return}
+      if(!confirm('¿Confirmas que el cliente NO realizó el pago de este mes? Se registrará un pago de $0.00 con la nota "MES NO PAGADO".')) return;
+      
+      // Registra un pago de $0.00 con nota específica
+      addPaymentToClient(activeClientId, 0, 'MES NO PAGADO');
+      $('payAmount').value=''; $('payNote').value='';
+    });
+
+    // PASAMOS LA TASA
     $('applyAuto').addEventListener('click', ()=>{
-      // Sugiere la cuota mensual y la registra
       if(!activeClientId){alert('Selecciona un cliente primero.');return}
       const clients = loadClients(); const c = clients.find(x=>x.id===activeClientId); if(!c) return;
       let suggested = 0;
-      if(c.mode==='simple'){ suggested = calcSimple(c.principal,c.months).interesMensual; }
-      else{ suggested = calcAmortizacion(c.principal,c.months).cuota; }
+      if(c.mode==='simple'){ suggested = calcSimple(c.principal,c.months, c.rate).interesMensual; }
+      else{ suggested = calcAmortizacion(c.principal,c.months, c.rate).cuota; }
       if(!confirm(`Registrar pago automático de $${money(suggested)}?`)) return;
       addPaymentToClient(activeClientId, suggested, 'Pago automático (cuota)');
     });
@@ -469,7 +542,7 @@
       activeClientId = null; $('emptyState').style.display='grid'; $('clientDetail').style.display='none';
     });
 
-    // 2. Exportar a EXCEL (XLSX)
+    // PASAMOS LA TASA AL EXCEL
     $('downloadClientCSV').addEventListener('click', ()=>{
       if(!activeClientId){alert('Selecciona un cliente.');return}
       const clients = loadClients(); const c = clients.find(x=>x.id===activeClientId); if(!c) return;
@@ -485,21 +558,19 @@
       const scheduleData = [];
       
       if(c.mode==='amortizacion'){
-        const amort = calcAmortizacion(c.principal,c.months);
-        // ENCABEZADO EXCEL ACTUALIZADO: Quitamos Saldo
+        const amort = calcAmortizacion(c.principal,c.months, c.rate);
         scheduleData.push(["Mes", "Cuota", "Interés", "Abono", "Estado"]); 
-        let paidAmount = getClientPaidTotal(c); // Recalcular estado
+        let paidAmount = getClientPaidTotal(c); 
         amort.schedule.forEach(s=>{
           let estado = 'Pendiente';
           if(paidAmount >= s.cuota){estado='Pagado'; paidAmount -= s.cuota;}
           else if(paidAmount > 0){estado = 'Parcial'; paidAmount = 0;}
-          // CUERPO EXCEL ACTUALIZADO: Quitamos s.saldo
           scheduleData.push([s.mes, s.cuota, s.interes, s.abono, estado]);
         });
       } else {
-        const s = calcSimple(c.principal,c.months);
+        const s = calcSimple(c.principal,c.months, c.rate);
         scheduleData.push(["Resumen Préstamo Simple"]);
-        scheduleData.push(["Monto Prestado (MXN)", c.principal, "Meses", c.months]);
+        scheduleData.push(["Monto Prestado (MXN)", c.principal, "Meses", c.months, "Tasa (%)", c.rate]);
         scheduleData.push(["Interés Mensual", s.interesMensual, "Interés Total", s.interesTotal, "Total a Pagar", s.pagoTotal]);
       }
       
@@ -521,14 +592,56 @@
       XLSX.writeFile(workbook, fileName);
     });
 
-    // ---------- eliminar pago: handled in renderPayments by button handlers ----------
+    // ---------- LÓGICA DE LOGIN Y LOGOUT ----------
+    
+    function startApp(user){
+        // Usar el usuario como parte de la clave de almacenamiento (para compartir datos)
+        storageKey = SHARED_KEY_PREFIX + user.toLowerCase(); 
 
-    // ---------- Inicializar ----------
-    renderClients();
+        // Ocultar login y mostrar app
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('mainApp').style.display = 'grid'; 
+        
+        document.getElementById('appLead').textContent = `Tasa variable · Usuario: ${user} · Guardando localmente`;
 
-    // Si hay un cliente primero, seleccionarlo (mejor UX)
-    (function autoSelectFirst(){const clients=loadClients(); if(clients.length>0){selectClient(clients[0].id);}})();
+        // Limpiar formulario y cargar datos
+        $('clientName').value=''; $('clientAmount').value='1000'; $('clientMonths').value='6'; $('clientRate').value='7';
+        
+        // Limpiar campos de login después de iniciar sesión
+        document.getElementById('loginUser').value = '';
+        document.getElementById('loginPass').value = '';
+        
+        renderClients();
+        (function autoSelectFirst(){const clients=loadClients(); if(clients.length>0){selectClient(clients[0].id);}})();
+    }
+    
+    function logout(){
+        // Restablecer el estado y mostrar la pantalla de login
+        activeClientId = null;
+        document.getElementById('mainApp').style.display = 'none';
+        document.getElementById('loginScreen').style.display = 'grid';
+        document.getElementById('loginError').style.display = 'none';
+        
+        // NO borramos localStorage para que los datos persistan
+    }
 
+    // MANEJADOR DEL BOTÓN DE LOGIN
+    document.getElementById('loginBtn').addEventListener('click', ()=>{
+        const user = document.getElementById('loginUser').value.trim();
+        const pass = document.getElementById('loginPass').value.trim();
+
+        if (user === VALID_USER && pass === VALID_PASS) {
+            document.getElementById('loginError').style.display = 'none';
+            startApp(user);
+        } else {
+            document.getElementById('loginError').textContent = 'Usuario o clave incorrecta.';
+            document.getElementById('loginError').style.display = 'block';
+        }
+    });
+
+    // MANEJADOR DEL BOTÓN DE LOGOUT
+    document.getElementById('logoutBtn').addEventListener('click', logout);
+    
   </script>
 </body>
 </html>
