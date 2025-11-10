@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Control de Préstamos — 7% mensual</title>
+  <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script> 
+  <style>
+    /* ---------- Variables y reseteo ---------- */
+    :root{
+      --bg:#0f1724;
+      --card:#0b1220;
+      --accent1:#6ee7b7;
+      --accent2:#7c5cff;
+      --glass: rgba(255,255,255,0.04);
+      --muted: rgba(255,255,255,0.65);
+      --glass-2: rgba(255,255,255,0.03);
+      --success:#10b981;
+      --danger:#ef4444;
+      --soft-shadow: 0 6px 24px rgba(2,6,23,0.6);
+      font-synthesis: none;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; background:linear-gradient(180deg,#071025 0%, #081225 60%); color:#e6eef8; -webkit-font-smoothing:antialiased; padding:20px}
+
+    /* ---------- Layout ---------- */
+    .app{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:360px 1fr;gap:20px;align-items:start}
+    @media (max-width:980px){.app{grid-template-columns:1fr;}}
+
+    /* ---------- Sidebar / Form ---------- */
+    .sidebar{background:linear-gradient(180deg, rgba(124,92,255,0.12), rgba(110,231,183,0.06));padding:18px;border-radius:14px;box-shadow:var(--soft-shadow);backdrop-filter: blur(6px);border:1px solid rgba(255,255,255,0.04)}
+    .brand{display:flex;gap:12px;align-items:center}
+    .logo{width:48px;height:48px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(135deg,var(--accent2),var(--accent1));box-shadow:0 6px 18px rgba(124,92,255,0.12);font-weight:700}
+    h1{font-size:18px;margin:0}
+    p.lead{margin:6px 0 14px;color:var(--muted);font-size:13px}
+
+    label{display:block;font-size:13px;color:var(--muted);margin-top:10px}
+    input[type=text], input[type=number], select{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));color:inherit}
+    .row{display:flex;gap:10px}
+    .row > *{flex:1}
+
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border-radius:10px;border:none;cursor:pointer;font-weight:600}
+    .btn.primary{background:linear-gradient(90deg,var(--accent2),var(--accent1));color:#021024;box-shadow:0 10px 30px rgba(110,231,183,0.08);}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+    .actions{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+
+    /* ---------- Clients list ---------- */
+    .clients{background:var(--card);padding:12px;border-radius:12px;box-shadow:var(--soft-shadow);border:1px solid rgba(255,255,255,0.03)}
+    .client-item{display:flex;align-items:center;gap:12px;padding:10px;border-radius:10px;margin-bottom:8px;background:linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));transition:transform .18s ease, box-shadow .18s ease}
+    .client-item:hover{transform:translateY(-4px);box-shadow:0 12px 30px rgba(2,6,23,0.6)}
+    .avatar{width:44px;height:44px;border-radius:10px;background:linear-gradient(135deg,var(--accent1),var(--accent2));display:grid;place-items:center;font-weight:700}
+    .client-meta{flex:1}
+    .client-meta b{display:block}
+    .small{font-size:13px;color:var(--muted)}
+
+    /* ---------- Main area ---------- */
+    .main{min-height:480px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,0.04);box-shadow:var(--soft-shadow)}
+    .grid-2{display:grid;grid-template-columns:1fr 360px;gap:16px}
+    @media (max-width:980px){.grid-2{grid-template-columns:1fr}}
+
+    .summary{display:flex;gap:12px;flex-wrap:wrap}
+    .stat{flex:1;min-width:160px;padding:12px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));}
+    .stat strong{display:block;font-size:18px}
+
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{padding:8px;border-bottom:1px dashed rgba(255,255,255,0.03);text-align:left}
+    th{text-align:center}
+
+    /* 1. Estilo para la cuota actual pendiente */
+    .current-due td{
+      background: rgba(239, 68, 68, 0.1); /* Fondo muy sutil rojo */
+    }
+    .current-due td:first-child, .current-due td:nth-child(2) { /* Las columnas de Mes y Cuota */
+      color: var(--danger); /* Letras rojas */
+    }
+
+    /* ---------- Animaciones ---------- */
+    @keyframes floaty{0%{transform:translateY(0)}50%{transform:translateY(-6px)}100%{transform:translateY(0)}}
+    .logo{animation:floaty 6s ease-in-out infinite}
+
+    /* ---------- Footer pequeño ---------- */
+    .muted{color:var(--muted)}
+
+    /* ---------- Helpers ---------- */
+    .center{display:grid;place-items:center}
+    .pill{padding:6px 10px;border-radius:999px;background:var(--glass-2);font-weight:700}
+    .danger{color:var(--danger)}
+    .success{color:var(--success)}
+
+    /* ---------- Responsive touches ---------- */
+    @media (max-width:560px){
+      .avatar{width:40px;height:40px}
+      .logo{width:44px;height:44px}
+    }
+
+    /* 3. Mejoras de Responsividad para Tablas */
+    @media (max-width: 768px){
+      /* Ajuste general para espaciado en pantallas más pequeñas */
+      body{padding:10px}
+      .app{gap:10px}
+      
+      /* Contenedor del calendario y pagos - permite scroll horizontal */
+      #scheduleWrap, #paymentsWrap{
+        overflow-x: auto !important; 
+      }
+      /* Min-width ajustado a 500px ya que quitamos una columna */
+      #scheduleWrap table, #paymentsWrap table{
+        min-width: 500px; 
+      }
+      .stat{min-width: unset; flex-basis: 45%;} /* Mejora el ajuste de los stats en filas de 2 */
+      .summary{justify-content: space-between;} /* Distribuye mejor los stats */
+    }
+
+    @media (max-width: 560px){
+      .summary{flex-direction: column; gap: 8px;} /* Pone los stats en una sola columna */
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">7%</div>
+        <div>
+          <h1>Control de Préstamos</h1>
+          <p class="lead">Tasa fija 7% mensual · Guarda datos localmente</p>
+        </div>
+      </div>
+
+      <div style="margin-top:12px">
+        <label>Nombre del cliente</label>
+        <input id="clientName" type="text" placeholder="Ej. Juan Pérez" />
+
+        <div class="row">
+          <div>
+            <label>Monto prestado (MXN)</label>
+            <input id="clientAmount" type="number" min="0" step="0.01" value="1000" />
+          </div>
+          <div>
+            <label>Plazo (meses)</label>
+            <input id="clientMonths" type="number" min="1" step="1" value="6" />
+          </div>
+        </div>
+
+        <label>Modo de amortización</label>
+        <select id="clientMode">
+          <option value="amortizacion">Amortización (cuota fija)</option>
+          <option value="simple">Interés simple</option>
+        </select>
+
+        <div class="actions">
+          <button id="addClient" class="btn primary">Agregar cliente</button>
+          <button id="clearAll" class="btn ghost">Eliminar todo</button>
+        </div>
+      </div>
+
+      <div style="margin-top:14px">
+        <div class="clients card" id="clientsList">
+          </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="grid-2">
+        <div class="card" id="detailCard">
+          <div id="emptyState" class="center" style="padding:40px;flex-direction:column">
+            <div class="muted">Selecciona un cliente o crea uno nuevo para ver su detalle</div>
+          </div>
+
+          <div id="clientDetail" style="display:none">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <h2 id="detailName" style="margin:0"></h2>
+                <div class="small muted" id="detailMeta"></div>
+              </div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <div class="pill">Tasa: 7% / mes</div>
+                <button id="downloadClientCSV" class="btn ghost">Exportar EXCEL</button>
+                <button id="deleteClient" class="btn" style="background:transparent;border:1px solid rgba(255,255,255,0.04)">Eliminar</button>
+              </div>
+            </div>
+
+            <div class="summary" style="margin-top:12px">
+              <div class="stat">
+                <small class="muted">Saldo inicial</small>
+                <strong id="statPrincipal">$0.00</strong>
+              </div>
+              <div class="stat">
+                <small class="muted">Total pagado</small>
+                <strong id="statPaid">$0.00</strong>
+              </div>
+              <div class="stat">
+                <small class="muted">Saldo pendiente</small>
+                <strong id="statDue">$0.00</strong>
+              </div>
+            </div>
+
+            <div style="margin-top:12px">
+              <h3 style="margin:0 0 8px 0">Registrar pago</h3>
+              <div class="row">
+                <input id="payAmount" type="number" placeholder="Monto" />
+                <input id="payNote" type="text" placeholder="Notas (ej. mes 1)" />
+              </div>
+              <div class="actions" style="margin-top:8px">
+                <button id="addPayment" class="btn primary">Añadir pago</button>
+                <button id="applyAuto" class="btn ghost">Aplicar al siguiente</button>
+              </div>
+            </div>
+
+            <div style="margin-top:12px">
+              <h3 style="margin:0 0 8px 0">Calendario / Pagos</h3>
+              <div id="scheduleWrap" style="max-height:320px;overflow:auto"></div>
+            </div>
+
+            <div style="margin-top:10px">
+              <h3 style="margin:0 0 8px 0">Historial de pagos</h3>
+              <div id="paymentsWrap" style="max-height:220px;overflow:auto"></div>
+            </div>
+
+          </div>
+        </div>
+
+        <aside class="card">
+          <h3 style="margin-top:0">Resumen global</h3>
+          <div class="small muted">Total de clientes: <span id="globalCount">0</span></div>
+          <div style="margin-top:12px">
+            <table>
+              <thead><tr><th>Cliente</th><th>Debe</th><th>Pagado</th></tr></thead>
+              <tbody id="globalTable"></tbody>
+            </table>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // ---------- Constantes y utilidades ----------
+    const RATE = 0.07; // 7% mensual
+    const $ = id => document.getElementById(id);
+    const storageKey = 'prestamos_clients_v1';
+
+    function money(n){return Number(n).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})}
+    function uid(){return 'c_'+Math.random().toString(36).slice(2,9)}
+
+    // ---------- Cálculos ----------
+    function calcAmortizacion(P, n){
+      const r = RATE;
+      const cuota = (P * r) / (1 - Math.pow(1 + r, -n));
+      let saldo = P;
+      const schedule = [];
+      let interesTotal = 0;
+      for(let i=1;i<=n;i++){
+        const interes = saldo * r;
+        const abono = cuota - interes;
+        saldo = Math.max(0, saldo - abono);
+        // NOTA: Mantenemos el saldo en el objeto 'schedule' para los cálculos internos
+        schedule.push({mes:i, cuota: Number(cuota.toFixed(2)), interes: Number(interes.toFixed(2)), abono: Number(abono.toFixed(2)), saldo: Number(saldo.toFixed(2))}); 
+        interesTotal += interes;
+      }
+      return {cuota: Number(cuota.toFixed(2)), interesTotal: Number(interesTotal.toFixed(2)), schedule};
+    }
+
+    function calcSimple(P,n){
+      const r = RATE;
+      const interesMensual = P * r;
+      const interesTotal = interesMensual * n;
+      const pagoTotal = P + interesTotal;
+      return {interesMensual: Number(interesMensual.toFixed(2)), interesTotal: Number(interesTotal.toFixed(2)), pagoTotal: Number(pagoTotal.toFixed(2))}
+    }
+
+    // ---------- Storage ----------
+    function loadClients(){
+      try{return JSON.parse(localStorage.getItem(storageKey)||'[]')}
+      catch(e){return []}
+    }
+    function saveClients(clients){localStorage.setItem(storageKey, JSON.stringify(clients));}
+
+    // ---------- Render lista de clientes ----------
+    function renderClients(){
+      const list = $('clientsList'); list.innerHTML='';
+      const clients = loadClients();
+      clients.forEach(c=>{
+        const dueAmount = getClientDue(c);
+        const dueClass = dueAmount > 0 ? 'danger' : 'success';
+        const div = document.createElement('div'); div.className='client-item'; div.dataset.id = c.id;
+        div.innerHTML = `
+          <div class="avatar">${c.name.split(' ').map(s=>s[0]).slice(0,2).join('')}</div>
+          <div class="client-meta">
+            <b>${c.name}</b>
+            <div class="small muted">Prestado: $${money(c.principal)} · Meses: ${c.months}</div>
+          </div>
+          <div style="text-align:right">
+            <div class="small muted">Adeuda</div>
+            <div class="${dueClass}"><strong>$${money(dueAmount)}</strong></div>
+          </div>
+        `;
+        div.addEventListener('click', ()=>selectClient(c.id));
+        list.appendChild(div);
+      });
+      $('globalCount').textContent = clients.length;
+      renderGlobalTable();
+    }
+
+    function renderGlobalTable(){
+      const clients = loadClients();
+      const tbody = $('globalTable'); tbody.innerHTML='';
+      clients.forEach(c=>{
+        const tr = document.createElement('tr');
+        const dueAmount = getClientDue(c);
+        const dueClass = dueAmount > 0 ? 'danger' : '';
+        tr.innerHTML = `<td>${c.name}</td><td class="${dueClass}">$${money(dueAmount)}</td><td>$${money(getClientPaidTotal(c))}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ---------- Cliente seleccionado ----------
+    let activeClientId = null;
+    function selectClient(id){
+      const clients = loadClients();
+      const c = clients.find(x=>x.id===id);
+      if(!c) return;
+      activeClientId = id;
+      $('emptyState').style.display='none';
+      $('clientDetail').style.display='block';
+      $('detailName').textContent = c.name;
+      $('detailMeta').textContent = `Prestado $${money(c.principal)} · ${c.months} meses · ${c.mode==='amortizacion'?'Amortización':'Interés simple'}`;
+      $('statPrincipal').textContent = '$'+money(c.principal);
+      $('statPaid').textContent = '$'+money(getClientPaidTotal(c));
+      $('statDue').textContent = '$'+money(getClientDue(c));
+      renderSchedule(c);
+      renderPayments(c);
+    }
+
+    function getClientPaidTotal(c){
+      return (c.payments||[]).reduce((s,p)=>s + Number(p.amount||0),0)
+    }
+
+    function getClientDue(c){
+      if(c.mode==='simple'){
+        const summary = calcSimple(c.principal, c.months);
+        const paid = getClientPaidTotal(c);
+        return Math.max(0, summary.pagoTotal - paid);
+      } else {
+        const summary = calcAmortizacion(c.principal, c.months);
+        const total = summary.cuota * c.months;
+        const paid = getClientPaidTotal(c);
+        return Math.max(0, total - paid);
+      }
+    }
+
+    // ---------- Schedule y pagos ----------
+    function renderSchedule(c){
+      const wrap = $('scheduleWrap'); wrap.innerHTML='';
+      if(c.mode==='simple'){
+        const s = calcSimple(c.principal, c.months);
+        wrap.innerHTML = `<div class="small muted">Interés mensual: $${money(s.interesMensual)} · Interés total: $${money(s.interesTotal)} · Total a pagar: $${money(s.pagoTotal)}</div>`;
+        return;
+      }
+      const amort = calcAmortizacion(c.principal, c.months);
+      // ENCABEZADO ACTUALIZADO: Quitamos Saldo
+      let html = '<table><thead><tr><th>Mes</th><th>Cuota</th><th>Interés</th><th>Abono</th><th>Estado</th></tr></thead><tbody>';
+      
+      // Determinar estado según pagos aplicados (primero a primero)
+      let paidAmount = getClientPaidTotal(c);
+      let isFirstPending = true; // Variable para rastrear la primera cuota pendiente
+
+      amort.schedule.forEach(row=>{
+        let estado = 'Pendiente';
+        let rowClass = ''; // Clase CSS para la fila
+        
+        if(paidAmount >= row.cuota){
+          estado='Pagado'; 
+          paidAmount -= row.cuota;
+        }
+        else { // Cuota parcial o pendiente total
+          if(paidAmount > 0){
+            estado = 'Parcial'; 
+            paidAmount = 0;
+          }
+
+          if(isFirstPending) { // Identificamos la primera cuota pendiente (la actual)
+            rowClass = 'current-due'; 
+            isFirstPending = false; // Deshabilitamos para las siguientes filas
+          }
+        }
+
+        // CUERPO DE TABLA ACTUALIZADO: Quitamos row.saldo
+        html += `<tr class="${rowClass}"><td style="text-align:center"><strong>${row.mes}</strong></td><td><strong>$${money(row.cuota)}</strong></td><td>$${money(row.interes)}</td><td>$${money(row.abono)}</td><td style="text-align:center">${estado}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      wrap.innerHTML = html;
+    }
+
+    function renderPayments(c){
+      const wrap = $('paymentsWrap'); wrap.innerHTML='';
+      const payments = (c.payments||[]).slice().reverse();
+      if(payments.length===0){wrap.innerHTML='<div class="muted small">Aún no hay pagos registrados.</div>';return}
+      let html = '<table><thead><tr><th>Fecha</th><th>Nota</th><th style="text-align:right">Monto</th><th></th></tr></thead><tbody>';
+      payments.forEach(p=>{
+        html += `<tr><td>${p.date}</td><td>${p.note||''}</td><td style="text-align:right">$${money(p.amount)}</td><td style="text-align:right"><button class="btn ghost" data-payid="${p.id}">Eliminar</button></td></tr>`;
+      });
+      html += '</tbody></table>';
+      wrap.innerHTML = html;
+      // attach delete handlers
+      wrap.querySelectorAll('button[data-payid]').forEach(btn=>btn.addEventListener('click', ()=>{
+        const payId = btn.dataset.payid; deletePayment(activeClientId, payId);
+      }));
+    }
+
+    function addPaymentToClient(clientId, amount, note){
+      const clients = loadClients();
+      const c = clients.find(x=>x.id===clientId); if(!c) return;
+      c.payments = c.payments || [];
+      c.payments.push({id: 'p_'+Math.random().toString(36).slice(2,9), amount: Number(amount), note: note||'', date: new Date().toLocaleString()});
+      saveClients(clients); selectClient(clientId); renderClients();
+    }
+
+    function deletePayment(clientId, payId){
+      const clients = loadClients(); const c = clients.find(x=>x.id===clientId); if(!c) return;
+      c.payments = (c.payments||[]).filter(p=>p.id!==payId);
+      saveClients(clients); selectClient(clientId); renderClients();
+    }
+
+    // ---------- Actions UI ----------
+    $('addClient').addEventListener('click', ()=>{
+      const name = $('clientName').value.trim();
+      const principal = Number($('clientAmount').value) || 0;
+      const months = parseInt($('clientMonths').value) || 1;
+      const mode = $('clientMode').value;
+      if(!name || principal<=0 || months<=0){alert('Llena nombre, monto y plazo válidos.');return}
+      const clients = loadClients();
+      const newClient = {id: uid(), name, principal, months, mode, payments: []};
+      clients.push(newClient); saveClients(clients); renderClients();
+      // reset form
+      $('clientName').value=''; $('clientAmount').value='1000'; $('clientMonths').value='6';
+    });
+
+    $('clearAll').addEventListener('click', ()=>{
+      if(!confirm('Eliminar todos los clientes y datos? Esta acción no se puede deshacer.')) return;
+      localStorage.removeItem(storageKey); renderClients();
+      $('emptyState').style.display='grid'; $('clientDetail').style.display='none'; activeClientId=null; renderGlobalTable();
+    });
+
+    $('addPayment').addEventListener('click', ()=>{
+      if(!activeClientId){alert('Selecciona un cliente primero.');return}
+      const amt = Number($('payAmount').value) || 0; const note = $('payNote').value.trim();
+      if(amt<=0){alert('Ingresa un monto válido.');return}
+      addPaymentToClient(activeClientId, amt, note);
+      $('payAmount').value=''; $('payNote').value='';
+    });
+
+    $('applyAuto').addEventListener('click', ()=>{
+      // Sugiere la cuota mensual y la registra
+      if(!activeClientId){alert('Selecciona un cliente primero.');return}
+      const clients = loadClients(); const c = clients.find(x=>x.id===activeClientId); if(!c) return;
+      let suggested = 0;
+      if(c.mode==='simple'){ suggested = calcSimple(c.principal,c.months).interesMensual; }
+      else{ suggested = calcAmortizacion(c.principal,c.months).cuota; }
+      if(!confirm(`Registrar pago automático de $${money(suggested)}?`)) return;
+      addPaymentToClient(activeClientId, suggested, 'Pago automático (cuota)');
+    });
+
+    $('deleteClient').addEventListener('click', ()=>{
+      if(!activeClientId) return; if(!confirm('Eliminar este cliente?')) return;
+      let clients = loadClients(); clients = clients.filter(x=>x.id!==activeClientId); saveClients(clients); renderClients();
+      activeClientId = null; $('emptyState').style.display='grid'; $('clientDetail').style.display='none';
+    });
+
+    // 2. Exportar a EXCEL (XLSX)
+    $('downloadClientCSV').addEventListener('click', ()=>{
+      if(!activeClientId){alert('Selecciona un cliente.');return}
+      const clients = loadClients(); const c = clients.find(x=>x.id===activeClientId); if(!c) return;
+
+      if(typeof XLSX === 'undefined'){
+        alert('Error: La librería de Excel no se cargó correctamente.');
+        return;
+      }
+
+      const workbook = XLSX.utils.book_new();
+      
+      // Hoja 1: Calendario de Amortización / Resumen Simple
+      const scheduleData = [];
+      
+      if(c.mode==='amortizacion'){
+        const amort = calcAmortizacion(c.principal,c.months);
+        // ENCABEZADO EXCEL ACTUALIZADO: Quitamos Saldo
+        scheduleData.push(["Mes", "Cuota", "Interés", "Abono", "Estado"]); 
+        let paidAmount = getClientPaidTotal(c); // Recalcular estado
+        amort.schedule.forEach(s=>{
+          let estado = 'Pendiente';
+          if(paidAmount >= s.cuota){estado='Pagado'; paidAmount -= s.cuota;}
+          else if(paidAmount > 0){estado = 'Parcial'; paidAmount = 0;}
+          // CUERPO EXCEL ACTUALIZADO: Quitamos s.saldo
+          scheduleData.push([s.mes, s.cuota, s.interes, s.abono, estado]);
+        });
+      } else {
+        const s = calcSimple(c.principal,c.months);
+        scheduleData.push(["Resumen Préstamo Simple"]);
+        scheduleData.push(["Monto Prestado (MXN)", c.principal, "Meses", c.months]);
+        scheduleData.push(["Interés Mensual", s.interesMensual, "Interés Total", s.interesTotal, "Total a Pagar", s.pagoTotal]);
+      }
+      
+      const wsSchedule = XLSX.utils.aoa_to_sheet(scheduleData);
+      XLSX.utils.book_append_sheet(workbook, wsSchedule, "Calendario");
+
+      // Hoja 2: Historial de Pagos
+      const paymentsData = [];
+      paymentsData.push(["Fecha", "Nota", "Monto (MXN)"]);
+      (c.payments||[]).forEach(p=>{
+        paymentsData.push([p.date, p.note||'', p.amount]);
+      });
+      
+      const wsPayments = XLSX.utils.aoa_to_sheet(paymentsData);
+      XLSX.utils.book_append_sheet(workbook, wsPayments, "Pagos");
+
+      // Generar y descargar el archivo XLSX
+      const fileName = 'cliente_'+c.name.split(' ').filter(Boolean).join('_') + '.xlsx';
+      XLSX.writeFile(workbook, fileName);
+    });
+
+    // ---------- eliminar pago: handled in renderPayments by button handlers ----------
+
+    // ---------- Inicializar ----------
+    renderClients();
+
+    // Si hay un cliente primero, seleccionarlo (mejor UX)
+    (function autoSelectFirst(){const clients=loadClients(); if(clients.length>0){selectClient(clients[0].id);}})();
+
+  </script>
+</body>
+</html>
