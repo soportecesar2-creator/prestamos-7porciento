@@ -28,9 +28,8 @@
         
         <button id="loginBtn" class="btn primary" style="width:100%; margin-top:20px;">Acceder</button>
         
-        <p class="small muted" style="margin-top:10px">Calcula</p>
-        <div id="syncStatus" class="small" style="margin-top:10px; color:var(--accent1);">Esperando sincronización...</div>
-    </div>
+        <p class="small muted" style="margin-top:10px">Usuario: CesarPati | Clave: cesarpati12345</p>
+        </div>
   </div>
 
   <div class="app" id="mainApp" style="display:none; padding:20px;">
@@ -41,7 +40,7 @@
             <div class="logo">P%</div>
             <div>
               <h1>Control de Préstamos</h1>
-              <p class="lead" id="appLead">Tasa variable · Clave: XXXXX</p>
+              <p class="lead" id="appLead">Tasa variable · Almacenamiento Local</p>
             </div>
           </div>
           <button id="logoutBtn" class="btn ghost" style="margin-left:10px;">Salir</button>
@@ -79,8 +78,7 @@
         <div class="actions">
           <button id="addClient" class="btn primary">Agregar cliente</button>
           <button id="clearAll" class="btn ghost">Eliminar todo</button>
-          <button id="manualSync" class="btn ghost" style="background:var(--accent2); color:white; margin-top:10px;">Sincronizar a GitHub</button>
-        </div>
+          </div>
       </div>
 
       <div style="margin-top:14px">
@@ -170,100 +168,14 @@
     const VALID_USER = 'CesarPati';
     const VALID_PASS = 'cesarpati12345';
     
-    // --- CONFIGURACIÓN DE GITHUB GIST (DEBES MODIFICAR ESTO) ---
-    // ⚠️ ADVERTENCIA: PEGA AQUÍ EL TOKEN Y EL ID DEL GIST.
-    const GITHUB_TOKEN = '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'; // <-- Reemplaza
-    const GIST_ID = 'c2d870a040cd9f47750cd6f6bc7ec296'; // <-- Reemplaza (Ej: c5f874ab0d4567c293623315a67890f5)
-    const GIST_FILENAME = 'app_data_clientes.json'; // Nombre del archivo dentro del Gist
+    // La clave de almacenamiento local (para este navegador)
+    const storageKey = 'prestamos_clients_v_local_final'; 
 
-    // VARIABLES GLOBALES
-    let clientsDataCache = [];
-    let storageKey = 'prestamos_clients_local_cache'; 
-    
     // ---------- Constantes y utilidades ----------
     const $ = id => document.getElementById(id);
 
     function money(n){return Number(n).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})}
     function uid(){return 'c_'+Math.random().toString(36).slice(2,9)}
-
-    // ---------- Sincronización con GIST ----------
-    
-    // 1. CARGA LOS DATOS DEL GIST
-    async function loadDataFromGitHub(){
-        $('syncStatus').textContent = 'Descargando datos desde Gist...';
-        
-        try {
-            const response = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
-                headers: {
-                    'Authorization': `token ${GITHUB_TOKEN}`,
-                    'Accept': 'application/vnd.github.v3+json'
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error(`Error ${response.status}: Revisa si el GIST ID es correcto o el token tiene permiso 'gist'.`);
-            }
-
-            const data = await response.json();
-            
-            if (!data.files || !data.files[GIST_FILENAME]) {
-                throw new Error(`Archivo ${GIST_FILENAME} no encontrado dentro del Gist.`);
-            }
-            
-            const content = data.files[GIST_FILENAME].content;
-            clientsDataCache = JSON.parse(content);
-            
-            $('syncStatus').textContent = `Sincronización exitosa. Clientes cargados: ${clientsDataCache.length}`;
-            return true;
-
-        } catch (error) {
-            console.error("Error en la carga de Gist:", error);
-            $('syncStatus').textContent = `ERROR DE CARGA: ${error.message}`;
-            clientsDataCache = JSON.parse(localStorage.getItem(storageKey) || '[]');
-            alert("⚠️ ¡Error de sincronización con Gist! Se cargaron datos locales.");
-            return false;
-        }
-    }
-
-    // 2. GUARDA LOS DATOS AL GIST
-    async function syncDataToGitHub(){
-        $('syncStatus').textContent = 'Subiendo datos a Gist...';
-        
-        try {
-            const content = JSON.stringify(clientsDataCache);
-            
-            const payload = {
-                description: `Actualización de clientes (${new Date().toLocaleString()})`,
-                files: {
-                    [GIST_FILENAME]: {
-                        content: content
-                    }
-                }
-            };
-
-            const response = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
-                method: 'PATCH', // Usamos PATCH para actualizar
-                headers: {
-                    'Authorization': `token ${GITHUB_TOKEN}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
-
-            if (!response.ok) {
-                throw new Error(`Error al subir: ${response.statusText}`);
-            }
-
-            $('syncStatus').textContent = '¡Datos sincronizados con éxito!';
-            return true;
-
-        } catch (error) {
-            console.error("Error en la sincronización a Gist:", error);
-            $('syncStatus').textContent = `ERROR AL SUBIR DATOS.`;
-            return false;
-        }
-    }
-
 
     // --- FUNCIONES DE CÁLCULO ---
     function calcAmortizacion(P, n, rate){
@@ -290,15 +202,15 @@
       return {interesMensual: Number(interesMensual.toFixed(2)), interesTotal: Number(interesTotal.toFixed(2)), pagoTotal: Number(pagoTotal.toFixed(2))}
     }
 
-    // --- MANEJO DE CLIENTES (Usa el caché) ---
+    // --- MANEJO DE CLIENTES (VUELVE A USAR localStorage DIRECTO) ---
     function loadClients(){
-      return clientsDataCache; 
+      try{return JSON.parse(localStorage.getItem(storageKey)||'[]')}
+      catch(e){return []}
     }
     
     function saveClients(clients){
-        clientsDataCache = clients;
         localStorage.setItem(storageKey, JSON.stringify(clients));
-        syncDataToGitHub(); // Sincronización automática
+        // SINCRONIZACIÓN ELIMINADA
     }
 
     // --- Funciones de Renderizado ---
@@ -458,9 +370,8 @@
     });
 
     $('clearAll').addEventListener('click', ()=>{
-      if(!confirm('Eliminar todos los clientes y datos? Se intentará eliminar el archivo de Gist.')) return;
-      clientsDataCache = []; // Limpia el caché
-      saveClients([]); // Sincroniza caché vacío
+      if(!confirm('Eliminar todos los clientes y datos? Esta acción no se puede deshacer.')) return;
+      saveClients([]); // Limpia el storage local
       renderClients();
       $('emptyState').style.display='grid'; $('clientDetail').style.display='none'; activeClientId=null; renderGlobalTable();
     });
@@ -495,52 +406,75 @@
       let clients = loadClients(); clients = clients.filter(x=>x.id!==activeClientId); saveClients(clients); renderClients();
       activeClientId = null; $('emptyState').style.display='grid'; $('clientDetail').style.display='none';
     });
-    
-    // Sincronización manual
-    $('manualSync').addEventListener('click', syncDataToGitHub);
 
-    // ... (función downloadClientCSV se mantiene igual)
-    
-    // ---------- LÓGICA DE LOGIN Y LOGOUT (MODIFICADA PARA SYNC) ----------
-    
-    async function startApp(user){
-        
-        document.getElementById('loginScreen').style.display = 'grid';
-        document.getElementById('mainApp').style.display = 'none';
-        
-        // Carga los datos de Gist ANTES de iniciar la app
-        const syncSuccess = await loadDataFromGitHub();
+    // Función de exportación a EXCEL se mantiene.
+    $('downloadClientCSV').addEventListener('click', ()=>{
+        if(!activeClientId){alert('Selecciona un cliente.');return}
+        const clients = loadClients(); const c = clients.find(x=>x.id===activeClientId); if(!c) return;
 
-        if (syncSuccess) {
-            document.getElementById('loginScreen').style.display = 'none';
-            document.getElementById('mainApp').style.display = 'grid'; 
-            
-            document.getElementById('appLead').textContent = `Tasa variable · Usuario: ${user} · Sincronizado`;
-
-            document.getElementById('loginUser').value = '';
-            document.getElementById('loginPass').value = '';
-            
-            renderClients();
-            (function autoSelectFirst(){const clients=loadClients(); if(clients.length>0){selectClient(clients[0].id);}})();
-            
-            window.addEventListener('beforeunload', syncDataToGitHub);
-
-        } else {
-             document.getElementById('loginScreen').style.display = 'grid';
+        if(typeof XLSX === 'undefined'){
+          alert('Error: La librería de Excel no se cargó correctamente.');
+          return;
         }
+
+        const workbook = XLSX.utils.book_new();
+        
+        const scheduleData = [];
+        
+        if(c.mode==='amortizacion'){
+          const amort = calcAmortizacion(c.principal,c.months, c.rate);
+          scheduleData.push(["Mes", "Cuota", "Interés", "Abono", "Estado"]); 
+          let paidAmount = getClientPaidTotal(c); 
+          amort.schedule.forEach(s=>{
+            let estado = 'Pendiente';
+            if(paidAmount >= s.cuota){estado='Pagado'; paidAmount -= s.cuota;}
+            else if(paidAmount > 0){estado = 'Parcial'; paidAmount = 0;}
+            scheduleData.push([s.mes, s.cuota, s.interes, s.abono, estado]);
+          });
+        } else {
+          const s = calcSimple(c.principal,c.months, c.rate);
+          scheduleData.push(["Resumen Préstamo Simple"]);
+          scheduleData.push(["Monto Prestado (MXN)", c.principal, "Meses", c.months, "Tasa (%)", c.rate]);
+          scheduleData.push(["Interés Mensual", s.interesMensual, "Interés Total", s.interesTotal, "Total a Pagar", s.pagoTotal]);
+        }
+        
+        const wsSchedule = XLSX.utils.aoa_to_sheet(scheduleData);
+        XLSX.utils.book_append_sheet(workbook, wsSchedule, "Calendario");
+
+        const paymentsData = [];
+        paymentsData.push(["Fecha", "Nota", "Monto (MXN)"]);
+        (c.payments||[]).forEach(p=>{
+          paymentsData.push([p.date, p.note||'', p.amount]);
+        });
+        
+        const wsPayments = XLSX.utils.aoa_to_sheet(paymentsData);
+        XLSX.utils.book_append_sheet(workbook, wsPayments, "Pagos");
+
+        const fileName = 'cliente_'+c.name.split(' ').filter(Boolean).join('_') + '.xlsx';
+        XLSX.writeFile(workbook, fileName);
+    });
+    
+    // --- LÓGICA DE LOGIN Y LOGOUT ---
+    
+    function startApp(user){
+        
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('mainApp').style.display = 'grid'; 
+        
+        document.getElementById('appLead').textContent = `Tasa variable · Usuario: ${user} · Almacenamiento Local`;
+
+        document.getElementById('loginUser').value = '';
+        document.getElementById('loginPass').value = '';
+        
+        renderClients();
+        (function autoSelectFirst(){const clients=loadClients(); if(clients.length>0){selectClient(clients[0].id);}})();
     }
     
     function logout(){
-        window.removeEventListener('beforeunload', syncDataToGitHub);
-        
-        syncDataToGitHub();
-        
         activeClientId = null;
         document.getElementById('mainApp').style.display = 'none';
         document.getElementById('loginScreen').style.display = 'grid';
         document.getElementById('loginError').style.display = 'none';
-        
-        $('syncStatus').textContent = 'Esperando sincronización...';
     }
 
     // MANEJADOR DEL BOTÓN DE LOGIN
@@ -563,7 +497,3 @@
   </script>
 </body>
 </html>
-
-
-
-
